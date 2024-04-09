@@ -13,28 +13,33 @@ import torch.nn.functional as F
 import os
 from glob import glob
 
-def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256, 256), labelnum=20):
-    
-    if os.path.exists("datasets/{}/image.npy".format(mode)) and \
-        os.path.exists("datasets/{}/label.npy".format(mode)) and \
-        os.path.exists("datasets/{}/mask.npy".format(mode)):
+def load_dataset(rel_path='.', mode="training", resize=True, resize_shape=(256, 256), labelnum=20):
+    datasets_path = os.path.join(rel_path, "datasets", mode)
+    src_path = os.path.join(rel_path, "DRIVE", mode)
+
+    image_path = os.path.join(datasets_path, "image.npy")
+    label_path = os.path.join(datasets_path, "label.npy")
+    mask_path = os.path.join(datasets_path, "mask.npy")
+
+    if os.path.exists(image_path) and \
+        os.path.exists(label_path) and \
+        os.path.exists(mask_path):
         
-        new_input_tensor = np.load("datasets/{}/image.npy".format(mode))
-        new_label_tensor = np.load("datasets/{}/label.npy".format(mode))
-        new_mask_tensor = np.load("datasets/{}/mask.npy".format(mode))
+        new_input_tensor = np.load(image_path)
+        new_label_tensor = np.load(label_path)
+        new_mask_tensor = np.load(mask_path)
         return new_input_tensor, new_label_tensor, new_mask_tensor
 
-    train_image_files = sorted(glob(os.path.join(rel_path, 'DRIVE/{}/images/*.tif'.format(mode))))
-    train_label_files = sorted(glob(os.path.join(rel_path, 'DRIVE/{}/1st_manual/*.gif'.format(mode))))
-    train_mask_files = sorted(glob(os.path.join(rel_path, 'DRIVE/{}/mask/*.gif'.format(mode))))
+    train_image_files = sorted(glob(os.path.join(src_path, 'images/*.tif')))
+    train_label_files = sorted(glob(os.path.join(src_path, '1st_manual/*.gif')))
+    train_mask_files = sorted(glob(os.path.join(src_path, 'mask/*.gif')))
     
     for i, filename in enumerate(train_image_files):
         print('[*] adding {}th {} image : {}'.format(i + 1, mode, filename))
         img = Image.open(filename)
         if resize:
-            img = img.resize(resize_shape, Image.ANTIALIAS)
+            img = img.resize(resize_shape, Image.LANCZOS)
         imgmat = np.array(img).astype('float')
-        # imgmat = (imgmat / 255.0 - 0.5) * 2
         imgmat = imgmat / 255.0
         if i == 0:
             input_tensor = np.expand_dims(imgmat, axis=0)
@@ -47,7 +52,7 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
         print('[*] adding {}th {} label : {}'.format(i + 1, mode, filename))
         Img_label = Image.open(filename)
         if resize:
-            Img_label = Img_label.resize(resize_shape, Image.ANTIALIAS)
+            Img_label = Img_label.resize(resize_shape, Image.LANCZOS)
             Img_label = Img_label.convert('1')
         label = np.array(Img_label)
         label = label / 1.0
@@ -62,7 +67,7 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
         print('[*] adding {}th {} mask : {}'.format(i+1, mode, filename))
         Img_mask = Image.open(filename)
         if resize:
-            Img_mask = Img_mask.resize(resize_shape, Image.ANTIALIAS)
+            Img_mask = Img_mask.resize(resize_shape, Image.LANCZOS)
             Img_mask = Img_mask.convert('1')
         mask = np.array(Img_mask)
         mask = mask / 1.0
@@ -72,9 +77,10 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
             tmp = np.expand_dims(mask, axis=0)
             mask_tensor = np.concatenate((mask_tensor, tmp), axis=0)
     new_mask_tensor = np.stack((mask_tensor[:,:,:], mask_tensor[:,:,:]), axis=1)
-    
-    np.save("datasets/{}/image.npy".format(mode), new_input_tensor)
-    np.save("datasets/{}/label.npy".format(mode), new_label_tensor)
-    np.save("datasets/{}/mask.npy".format(mode), new_mask_tensor)
+    if not os.path.exists(datasets_path + "/"):
+        os.makedirs(datasets_path + "/")
+    np.save(image_path, new_input_tensor)
+    np.save(label_path, new_label_tensor)
+    np.save(mask_path, new_mask_tensor)
     
     return new_input_tensor, new_label_tensor, new_mask_tensor
