@@ -40,6 +40,7 @@ class Unet(nn.Module):
         self.blocks = nn.ModuleList([self.down1, self.down2, self.down3,\
                                      self.down4, self.encoder, self.up1, self.up2,\
                                      self.up3, self.up4, self.out])
+        self.tanh = nn.Tanh()
 
     def forward(self, input_):
         d1 = self.down1(input_)
@@ -51,5 +52,6 @@ class Unet(nn.Module):
         u2 = self.up2(u1, d3)
         u3 = self.up3(u2, d2)
         u4 = self.up4(u3, d1)
+        output_tanh = self.tanh(u4)
         output_ = self.out(u4)
-        return output_
+        return output_, output_tanh

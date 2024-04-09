@@ -81,20 +81,20 @@ def model_train(net, epochs=500, batch_size=2, lr=1e-2, save_every=5, eval_every
             
             image = bat_img[0, :, :, :]
             grid_image = make_grid(image, 1, normalize=True)
-            writer.add_image('train/Image', grid_image, ite)
+            writer.add_image('train/Image', grid_image, epoch)
 
             image = bat_pred[0, :, :, :]
             grid_image = make_grid(image, 1, normalize=False)
-            writer.add_image('train/Predicted_label', grid_image, ite)
+            writer.add_image('train/Predicted_label', grid_image, epoch)
 
             image = bat_label[0, :, :]
             grid_image = make_grid(image, 1, normalize=False)
             writer.add_image('train/Groundtruth_label',
-                                grid_image, ite)
+                                grid_image, epoch)
             
             image = bat_mask[0, :, :]
             grid_image = make_grid(image, 1, normalize=False)
-            writer.add_image('train/Mask', grid_image, ite)
+            writer.add_image('train/Mask', grid_image, epoch)
                 
         if epoch % save_every == 0:
             torch.save(net.state_dict(), "./checkpoint/Unet_epoch{}_loss{:.4f}_retina.model".format(str(epoch + 1).zfill(5), epoch_avg_loss))

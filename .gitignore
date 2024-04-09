@@ -5,4 +5,5 @@ pred_imgs/
 checkpoint/
 DRIVE/
 __pycache__/
+model/
 
