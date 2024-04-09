@@ -44,8 +44,8 @@ matplotlib == 3.0.3
 ## Training and Testing on DRIVE dataset
 
 ```
-python train_model.py
-python test_model.py
+python train_model_mynet.py
+python test_model_mynet.py
 ```
 
 
