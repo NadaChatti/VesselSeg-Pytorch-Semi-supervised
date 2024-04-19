@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # filename: train_model.py
-# brief: train U-net model on DRIVE dataset
+# brief: train U-net model on DCA1 dataset
 # author: Jia Zhuang
 # date: 2020-09-21
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     # make logger file
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    snapshot_path = project_dirname + "/model/DRIVE/" + \
+    snapshot_path = project_dirname + "/model/DCA1/" + \
     "{}_{}labels_beta_{}_scaling_{}/".format(
         current_time, LABELNUM, BETA, SCALING)
     

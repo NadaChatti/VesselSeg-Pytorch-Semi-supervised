@@ -3,27 +3,11 @@ import torch
 import numpy as np
 from glob import glob
 from torch.utils.data import Dataset
-from cv2 import imread 
+import cv2
 import itertools
 from torch.utils.data.sampler import Sampler
 import re
 import numpy as np
-
-# def read_pgm(input):
-#     # Open image file, slurp the lot
-#     with open(input) as f:
-#         s = f.read()
-
-#     # Find anything that looks like numbers
-#     # Technically, there could be comments that should be ignored
-#     l=re.findall(r'[0-9P]+',s)
-
-#     # List "l" will contain: P5, width, height, 255, pixel1, pixel2, pixel3...
-#     # Technically, if l[3]>255, you should change the type of the Numpy array to uint16, but that is not the case
-#     w, h = int(l[1]), int(l[2])
-
-#     # Make Numpy image from data
-#     return np.array(l[4:],dtype=np.uint8).reshape((h,w))
 
 def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256, 256)):
 
@@ -56,9 +40,9 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
     
     for i, filename in enumerate(image_files):
         print('[*] adding {}th {} image : {}'.format(i + 1, mode, filename))
-        img = imread(filename)
-        # if resize:
-        #     img = img.resize(resize_shape, Image.LANCZOS)
+        img = cv2.imread(filename)
+        if resize:
+            img = cv2.resize(img, resize_shape)
         imgmat = np.array(img).astype('float')
         imgmat = imgmat / 255.0
         if i == 0:
@@ -70,11 +54,12 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
             
     for i, filename in enumerate(label_files):
         print('[*] adding {}th {} label : {}'.format(i + 1, mode, filename))
-        Img_label = imread(filename)
-        # if resize:
-        #     Img_label = Img_label.resize(resize_shape, Image.LANCZOS)
-        #     Img_label = Img_label.convert('1')
-        label = np.array(Img_label)
+        img_label = cv2.imread(filename)
+        if resize:
+            img_label = cv2.resize(img_label, resize_shape)
+            img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
+            _, img_label = cv2.threshold(img_label, 127, 255, cv2.THRESH_BINARY)
+        label = np.array(img_label)
         label = label / 1.0
         if i == 0:
             label_tensor = np.expand_dims(label, axis=0)
@@ -96,7 +81,7 @@ class DCA1(Dataset):
         
         self.transform = transform
 
-        self.image_list, self.label_list = load_dataset(rel_path=base_dir)
+        self.image_list, self.label_list = load_dataset(rel_path=base_dir, resize=True)
         
         shuffle_ids = np.random.permutation(len(self.image_list))
         self.image_list = self.image_list[shuffle_ids, :, :, :]
