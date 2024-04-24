@@ -1,5 +1,5 @@
 protocolVersion: 2
-name: base_code
+name: dca1
 type: job
 prerequisites:
   - name: image
@@ -43,7 +43,7 @@ taskRoles:
       - pip install medpy
       - pip install h5py
       - export HDF5_USE_FILE_LOCKING='FALSE'
-      - python3 train_model_mynet.py
+      - python3 code/train_dca1_mynet.py
 extras:
   com.microsoft.pai.runtimeplugin:
     - plugin: ssh
@@ -52,7 +52,7 @@ extras:
     - plugin: tensorboard
       parameters:
         logdir:
-          path: /mnt/workfiles/VesselSeg-Pytorch-Semi-supervised/runs
+          path: /mnt/workfiles/VesselSeg-Pytorch-Semi-supervised/model
     - plugin: teamwise_storage
       parameters:
         storageConfigNames:

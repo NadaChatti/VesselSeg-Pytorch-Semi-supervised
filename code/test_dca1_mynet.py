@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # filename: test_model.py
-# brief: test U-net model on DRIVE dataset
+# brief: test model on DCA1 dataset
 # author: Jia Zhuang
 # date: 2020-09-21
 
@@ -17,14 +17,16 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 from utils import paste_and_save, eval_print_metrics
 from tensorboardX import SummaryWriter
 from torchvision.utils import make_grid
+from utils_dtc.metrics import dice, cal_dice
 
-MODEL = "Apr09_05-22-16_16labels_beta_0.3_scaling_-200"
-ITERATION = "iter_1500.pth"
+MODEL = "cluster"
+ITERATION = "iter_1200.pth"
+
 project_dirname = os.path.join(os.path.dirname(__file__), "..")
 
 def model_test(net, base_dir, save_imgs, batch_size=2):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    x_tensor, y_tensor, m_tensor = load_dataset(rel_path=project_dirname, mode='test')
+    x_tensor, y_tensor = load_dataset(rel_path=project_dirname, mode='test', resize=True)
     num_samples = x_tensor.shape[0]
     writer = SummaryWriter(base_dir)
 
@@ -37,19 +39,21 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
             start_id, end_id = ite * batch_size, (ite + 1) * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : end_id, :, :, :]).to(device)
             bat_label = torch.Tensor(y_tensor[start_id : end_id, 0: 1, :, :]).to(device)
-            bat_mask = torch.Tensor(m_tensor[start_id : , 0: 1, :, :]).to(device)
         else:
             start_id = ite * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : , :, :, :]).to(device)
             bat_label = torch.Tensor(y_tensor[start_id : , 0: 1, :, :]).to(device)
             #bat_mask_2ch = torch.Tensor(m_tensor[start_id : end_id, :, :, :]).to(device)
-            bat_mask = torch.Tensor(m_tensor[start_id : , 0: 1, :, :]).to(device)
-        bat_pred, _ = net(bat_img)
+        _, bat_pred = net(bat_img)
         bat_pred = torch.sigmoid(bat_pred)
+
         # bat_pred_class = (bat_pred > 0.5).float() * bat_mask
         # precision, recall, f1_score, bat_auc, bat_roc = eval_print_metrics(bat_label, bat_pred, bat_mask)
-        # writer.add_scalar("test/precision", precision, ite)
-        # writer.add_scalar("test/recall", recall, ite)
+        dice_metric = dice(bat_pred, bat_label)
+        cl_dice_metric = cal_dice(bat_pred, bat_label)
+        
+        writer.add_scalar("test/dice", dice_metric, ite)
+        writer.add_scalar("test/cl_dice", cl_dice_metric, ite)
         # writer.add_scalar("test/f1_score", f1_score, ite)
         # writer.add_scalar("test/bat_auc", bat_auc, ite)
         # writer.add_scalar("test/bat_roc", bat_roc[0], ite)
@@ -78,7 +82,7 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
 if __name__ == "__main__":
 
     
-    model_path = os.path.join(project_dirname,"model", "DRIVE", MODEL)
+    model_path = os.path.join(project_dirname,"model", "DCA1", MODEL)
     snapshot_path = os.path.join(model_path, "test")
     save_mgs_path = snapshot_path + "/pred_imgs"
     datasets_path = project_dirname + "/datasets/test"
@@ -89,7 +93,7 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # selected_model = sorted(glob(model_path + "/*.pth"))[-1]
-    selected_model = os.path.join(model_path + ITERATION)
+    selected_model = model_path + "/" + ITERATION
     print("[*] Selected model for testing: {} ".format(selected_model))
     mynet_ins = MyNet(n_channels=3, n_classes=2-1,
                    normalization='batchnorm', has_dropout=True)

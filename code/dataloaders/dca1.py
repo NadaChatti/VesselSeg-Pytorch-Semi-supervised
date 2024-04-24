@@ -58,7 +58,7 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
         if resize:
             img_label = cv2.resize(img_label, resize_shape)
             img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
-            _, img_label = cv2.threshold(img_label, 127, 255, cv2.THRESH_BINARY)
+            _, img_label = cv2.threshold(img_label, 127, 1, cv2.THRESH_BINARY)
         label = np.array(img_label)
         label = label / 1.0
         if i == 0:
@@ -145,9 +145,9 @@ class RandomCrop(object):
 
         # pad the sample if necessary
 
-        if label.shape[0] <= self.output_size[0] or label.shape[1] <= self.output_size[1] or label.shape[2] <= \
+        if label.shape[1] <= self.output_size[1] or label.shape[2] <= \
                 self.output_size[2]:
-            pd = max((self.output_size[0] - label.shape[0]) // 2 + 3, 0)
+            # pd = max((self.output_size[0] - label.shape[0]) // 2 + 3, 0)
             pw = max((self.output_size[1] - label.shape[1]) // 2 + 3, 0)
             ph = max((self.output_size[2] - label.shape[2]) // 2 + 3, 0)
 
