@@ -4,7 +4,6 @@
 # author: Jia Zhuang
 # date: 2020-09-21
 
-from PIL import Image
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -43,19 +42,22 @@ SAVE_EVERY = 20
 EVAL_EVERY = 30
 SEED = 1337
 NUM_CLASSES = 2
-PATCH_SIZE = (112, 112, 3)
+PATCH_SIZE = (3, 112, 112)
 BETA = 0.3
 SCALING = -200
 CONSISTENCY_RAMPUP = 40.0
+WITH_AUG = True
 
 project_dirname = os.path.join(os.path.dirname(__file__), "..")
+myTransforms = [ToTensor()]
+if WITH_AUG: 
+    myTransforms = [
+        RandomRotFlip(), 
+        # RandomCrop(PATCH_SIZE)
+                    ] + myTransforms
 
 db_train = DCA1(base_dir=project_dirname,
-                    transform=transforms.Compose([
-                    #    RandomRotFlip(),
-                    #    RandomCrop(PATCH_SIZE),
-                        ToTensor(),
-                    ])
+                    transform=transforms.Compose(myTransforms)
                     )
 
 labeled_idxs = list(range(LABELNUM))
@@ -73,16 +75,10 @@ def get_current_consistency_weight(epoch):
     return sigmoid_rampup(epoch, CONSISTENCY_RAMPUP)
 
 def model_train(net, model_path=None):
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    #optimizer = torch.optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     optimizer = torch.optim.SGD(net.parameters(), lr=LR, momentum=0.9, weight_decay=0.0001)
-    #optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-    #loss_func = nn.CrossEntropyLoss()
-    # x_tensor, y_tensor, m_tensor = load_dataset(mode="training")
-    #x_tensor, y_tensor, m_tensor = rim_padding(x_tensor), rim_padding(y_tensor), rim_padding(m_tensor)
-    # num_samples = x_tensor.shape[0]
     writer = SummaryWriter(model_path+'/log')
-    # ce_loss = BCEWithLogitsLoss()
     ce_loss = BCELoss()
     mse_loss = MSELoss()
     
@@ -94,38 +90,41 @@ def model_train(net, model_path=None):
 
         for _, sampled_batch in enumerate(trainloader):
             bat_img, bat_label = sampled_batch['image'], sampled_batch['label']
-            bat_img, bat_label = bat_img.cuda(), bat_label.cuda()
+            bat_img, bat_label = bat_img.to(device), bat_label.to(device)
 
             optimizer.zero_grad()
             bat_pred_tanh, bat_pred = net(bat_img)
             bat_pred_soft = torch.sigmoid(bat_pred)
-            # flattened_tensor = bat_label[:labeled_bs].float().view(-1)
+            # flattened_tensor = bat_label[:LABELED_BS].float().view(-1)
             # print("VALUES")
             # for value in flattened_tensor:
             #     if value > 1 or value < 0:
             #         print("========== {}".format(value.item()))
+            
             # calculate the loss
             with torch.no_grad():
                 gt_dis = compute_sdf(bat_label[:].cpu(
                 ).numpy(), bat_pred[:LABELED_BS, 0, ...].shape)
-                gt_dis = torch.from_numpy(gt_dis).float().cuda()
-            loss_sdf = mse_loss(bat_pred_tanh[:LABELED_BS, 0, ...], gt_dis)
+                gt_dis = torch.from_numpy(gt_dis).float().to(device)
+            
+            loss_sdf = mse_loss(bat_pred_tanh[:LABELED_BS, 0, ...], gt_dis)    
+            
             loss_seg = ce_loss(
                 bat_pred_soft[:LABELED_BS], bat_label[:LABELED_BS].float())
             
-
             loss_seg_dice = dice_loss(
                 bat_pred_soft[:LABELED_BS], bat_label[:LABELED_BS] == 1)
+            
             dis_to_mask = torch.sigmoid(SCALING*bat_pred_tanh)
 
             consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
+            
             supervised_loss = loss_seg_dice + BETA * loss_sdf
+            
             consistency_weight = get_current_consistency_weight(epoch//150)
 
             loss = supervised_loss + consistency_weight * consistency_loss
 
-            # loss = criterion(bat_pred_soft, bat_label == 1)
-            writer.add_scalar("Loss/train", loss, epoch)
             # if is_eval:
                 # if epoch % eval_every == 0:
                 #     print("[*] ...... Eval for Epoch: {}, Iter: {} ....... ".format(epoch + 1, ite + 1))
@@ -203,8 +202,9 @@ if __name__ == "__main__":
     # make logger file
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
     snapshot_path = project_dirname + "/model/DCA1/" + \
-    "{}_{}labels_beta_{}_scaling_{}/".format(
+    "{}_{}labels_beta_{}_scaling_{}".format(
         current_time, LABELNUM, BETA, SCALING)
+    snapshot_path += "withAug/" if WITH_AUG else "/"
     
     if not os.path.exists(snapshot_path):
         os.makedirs(snapshot_path)
@@ -226,6 +226,7 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(SEED)
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     mynet_ins = MyNet(n_channels=3, n_classes=NUM_CLASSES-1,
                    normalization='batchnorm', has_dropout=True)
     mynet_ins.to(device)

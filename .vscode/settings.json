@@ -1,7 +1,7 @@
 {
     "pai.job.v2.upload": {
         "master.garching.cluster.campar.in.tum.de": {
-            "enable": true,
+            "enable": false,
             "include": [
                 "**/*.py"
             ],
