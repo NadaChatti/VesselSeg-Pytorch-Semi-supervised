@@ -37,13 +37,11 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
             start_id, end_id = ite * batch_size, (ite + 1) * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : end_id, :, :, :]).to(device)
             bat_label = torch.Tensor(y_tensor[start_id : end_id, 0: 1, :, :]).to(device)
-            bat_mask = torch.Tensor(m_tensor[start_id : , 0: 1, :, :]).to(device)
         else:
             start_id = ite * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : , :, :, :]).to(device)
             bat_label = torch.Tensor(y_tensor[start_id : , 0: 1, :, :]).to(device)
             #bat_mask_2ch = torch.Tensor(m_tensor[start_id : end_id, :, :, :]).to(device)
-            bat_mask = torch.Tensor(m_tensor[start_id : , 0: 1, :, :]).to(device)
         bat_pred, _ = net(bat_img)
         bat_pred = torch.sigmoid(bat_pred)
         # bat_pred_class = (bat_pred > 0.5).float() * bat_mask

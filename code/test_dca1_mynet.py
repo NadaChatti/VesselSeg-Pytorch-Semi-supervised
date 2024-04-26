@@ -29,10 +29,11 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
     x_tensor, y_tensor = load_dataset(rel_path=project_dirname, mode='test', resize=True)
     num_samples = x_tensor.shape[0]
     writer = SummaryWriter(base_dir)
-
+    dice_score_sum = 0
+    cal_dice_score_sum  = 0
     print("[+] ====== Start test... ======")
     num_iters = int(np.ceil(num_samples / batch_size))
-    # criterion = nn.BCELoss()
+    
     for ite in range(num_iters):
         print("[*] predicting on the {}th batch".format(ite + 1))
         if not ite == num_iters - 1:
@@ -43,24 +44,17 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
             start_id = ite * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : , :, :, :]).to(device)
             bat_label = torch.Tensor(y_tensor[start_id : , 0: 1, :, :]).to(device)
-            #bat_mask_2ch = torch.Tensor(m_tensor[start_id : end_id, :, :, :]).to(device)
         _, bat_pred = net(bat_img)
         bat_pred = torch.sigmoid(bat_pred)
 
-        # bat_pred_class = (bat_pred > 0.5).float() * bat_mask
-        # precision, recall, f1_score, bat_auc, bat_roc = eval_print_metrics(bat_label, bat_pred, bat_mask)
         dice_metric = dice(bat_pred, bat_label)
         cl_dice_metric = cal_dice(bat_pred, bat_label)
-        
+        dice_score_sum += dice_metric
+        cal_dice_score_sum += cl_dice_metric
         writer.add_scalar("test/dice", dice_metric, ite)
         writer.add_scalar("test/cl_dice", cl_dice_metric, ite)
-        # writer.add_scalar("test/f1_score", f1_score, ite)
-        # writer.add_scalar("test/bat_auc", bat_auc, ite)
-        # writer.add_scalar("test/bat_roc", bat_roc[0], ite)
-        # loss = criterion(bat_pred, bat_label.float())
-        # loss = loss_func(masked_pred, masked_label.float())
-        # writer.add_scalar("Loss/test", loss, ite)
-        bat_pred_class = bat_pred.detach() #* bat_mask
+
+        bat_pred_class = bat_pred.detach() 
         paste_and_save(bat_img, bat_label, bat_pred_class, batch_size, ite + 1, save_imgs)
         
         image = bat_img[0, :, :, :]
@@ -76,6 +70,11 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
         writer.add_image('test/Groundtruth_label',
                             grid_image, ite)
     
+    dice_average = dice_score_sum  / num_iters
+    cal_dice_average = cal_dice_score_sum  / num_iters
+    print('average dice score is {}'.format(dice_average))
+    print('average cal dice score is {}'.format(cal_dice_average))
+
     return
 
 
