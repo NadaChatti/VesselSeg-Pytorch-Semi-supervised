@@ -52,7 +52,7 @@ extras:
     - plugin: tensorboard
       parameters:
         logdir:
-          path: /mnt/workfiles/VesselSeg-Pytorch-Semi-supervised/model
+          path: /mnt/workfiles/VesselSeg-Pytorch-Semi-supervised/model/DCA1
     - plugin: teamwise_storage
       parameters:
         storageConfigNames:
