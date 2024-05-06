@@ -236,7 +236,10 @@ class Solver(object):
             if self.verbose and epoch % self.print_every == 0:
                 logging.info('(Epoch %d / %d) train loss: %f; val loss: %f' % (
                     epoch + 1, len(iterator), train_epoch_loss.item(), val_epoch_loss.item()))
-
+            
+            self.writer.add_scalar(f'train_loss/epoch_loss', train_epoch_loss.item(), self.current_iter)
+            self.writer.add_scalar(f'val_loss/epoch_loss', val_epoch_loss.item(), self.current_iter)
+            
             # Keep track of the best model
             self.update_best_loss(val_epoch_loss, train_epoch_loss, self.current_iter)
             # if patience and self.current_patience >= patience:

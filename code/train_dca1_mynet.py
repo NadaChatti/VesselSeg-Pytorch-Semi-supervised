@@ -58,11 +58,6 @@ train_unlabeled_idxs = unlabeled_idxs[:train_unlabeled_num]
 val_labeled_idxs = labeled_idxs[train_labeled_num:]
 val_unlabeled_idxs = unlabeled_idxs[train_unlabeled_num:]
 
-logging.info(f"train labeled indices = {train_labeled_idxs}")
-logging.info(f"validation labeled indices = {val_labeled_idxs}")
-logging.info(f"train unlabeled indices = {train_unlabeled_idxs}")
-logging.info(f"validation unlabeled indices = {val_unlabeled_idxs}")
-
 train_batch_sampler = TwoStreamBatchSampler(
     train_labeled_idxs, train_unlabeled_idxs, BATCH_SIZE, BATCH_SIZE-LABELED_BS)
 val_batch_sampler = TwoStreamBatchSampler(
@@ -124,6 +119,10 @@ if __name__ == "__main__":
         # fold += 1
         # logging.info(f"Fold {fold}/{kf.get_n_splits()}")
 
+    logging.info(f"train labeled indices = {train_labeled_idxs}")
+    logging.info(f"validation labeled indices = {val_labeled_idxs}")
+    logging.info(f"train unlabeled indices = {train_unlabeled_idxs}")
+    logging.info(f"validation unlabeled indices = {val_unlabeled_idxs}")
 
     model = MyNet(n_channels=3, n_classes=NUM_CLASSES-1, normalization='batchnorm', has_dropout=True)
     model.to(device)
