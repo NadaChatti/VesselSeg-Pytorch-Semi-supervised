@@ -9,6 +9,17 @@ from torch.utils.data.sampler import Sampler
 import re
 import numpy as np
 
+def get_image_number(path):
+    file = os.path.basename(path)
+    image_num = os.path.splitext((os.path.splitext(file)[0]))[0]
+    return int(image_num)
+
+def get_label_number(path):
+    file = os.path.basename(path)
+    image_num = os.path.splitext((os.path.splitext(file)[0]))[0]
+    image_num = image_num.split('_')[0]
+    return int(image_num)
+
 def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256, 256)):
 
     dataset_name = "Database_134_Angiograms"
@@ -26,8 +37,8 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
         return new_input_tensor, new_label_tensor
 
     all_files = sorted(glob(os.path.join(src_path, '*.pgm')))
-    label_files = sorted(glob(os.path.join(src_path, '*_gt.pgm')))
-    image_files = sorted([file for file in all_files if file not in label_files])
+    label_files = sorted(glob(os.path.join(src_path, '*_gt.pgm')), key = get_label_number)
+    image_files = sorted([file for file in all_files if file not in label_files], key = get_image_number)
 
     testnum = 34
 
@@ -83,9 +94,9 @@ class DCA1(Dataset):
 
         self.image_list, self.label_list = load_dataset(rel_path=base_dir, resize=True)
         
-        shuffle_ids = np.random.permutation(len(self.image_list))
-        self.image_list = self.image_list[shuffle_ids, :, :, :]
-        self.label_list = self.label_list[shuffle_ids, :, :, :]
+        # shuffle_ids = np.random.permutation(len(self.image_list))
+        # self.image_list = self.image_list[shuffle_ids, :, :, :]
+        # self.label_list = self.label_list[shuffle_ids, :, :, :]
 
     def __len__(self):
         return len(self.image_list)
