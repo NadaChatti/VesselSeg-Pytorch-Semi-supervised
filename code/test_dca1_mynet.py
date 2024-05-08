@@ -10,6 +10,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import os
+import sys
+import logging
 from glob import glob
 from dataloaders.dca1 import load_dataset
 from networks.mynet import MyNet
@@ -19,8 +21,8 @@ from tensorboardX import SummaryWriter
 from torchvision.utils import make_grid
 from utils_dtc.metrics import dice, cal_dice
 
-MODEL = "cluster"
-ITERATION = "iter_1200.pth"
+MODEL = "May08_14-54-14_20labels_beta_0.3_scaling_-1500withAug"
+ITERATION = "iter_6000.pth"
 
 project_dirname = os.path.join(os.path.dirname(__file__), "..")
 
@@ -31,11 +33,11 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
     writer = SummaryWriter(base_dir)
     dice_score_sum = 0
     cal_dice_score_sum  = 0
-    print("[+] ====== Start test... ======")
+    logging.info("[+] ====== Start test... ======")
     num_iters = int(np.ceil(num_samples / batch_size))
     
     for ite in range(num_iters):
-        print("[*] predicting on the {}th batch".format(ite + 1))
+        logging.info("[*] predicting on the {}th batch".format(ite + 1))
         if not ite == num_iters - 1:
             start_id, end_id = ite * batch_size, (ite + 1) * batch_size
             bat_img = torch.Tensor(x_tensor[start_id : end_id, :, :, :]).to(device)
@@ -72,8 +74,8 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
     
     dice_average = dice_score_sum  / num_iters
     cal_dice_average = cal_dice_score_sum  / num_iters
-    print('average dice score is {}'.format(dice_average))
-    print('average cal dice score is {}'.format(cal_dice_average))
+    logging.info('average dice score is {}'.format(dice_average))
+    logging.info('average cal dice score is {}'.format(cal_dice_average))
 
     return
 
@@ -82,7 +84,7 @@ if __name__ == "__main__":
 
     
     model_path = os.path.join(project_dirname,"model", "DCA1", MODEL)
-    snapshot_path = os.path.join(model_path, "test")
+    snapshot_path = os.path.join(model_path, f"test_{ITERATION.split('.')[0]}")
     save_mgs_path = snapshot_path + "/pred_imgs"
     datasets_path = project_dirname + "/datasets/test"
     if not os.path.exists(save_mgs_path):
@@ -90,10 +92,14 @@ if __name__ == "__main__":
     if not os.path.exists(datasets_path):
         os.makedirs(datasets_path)
 
+    logging.basicConfig(filename=snapshot_path+"/log.txt", level=logging.INFO,
+                    format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # selected_model = sorted(glob(model_path + "/*.pth"))[-1]
     selected_model = model_path + "/" + ITERATION
-    print("[*] Selected model for testing: {} ".format(selected_model))
+    logging.info("[*] Selected model for testing: {} ".format(selected_model))
     mynet_ins = MyNet(n_channels=3, n_classes=2-1,
                    normalization='batchnorm', has_dropout=True)
     mynet_ins.load_state_dict(torch.load(selected_model, map_location=device))
