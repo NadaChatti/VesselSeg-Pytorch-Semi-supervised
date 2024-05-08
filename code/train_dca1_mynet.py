@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 # set parameters for training
 IMAGENUM = 100
 LABELNUM = 20
-LR = 0.1 # 1e-2
+LR = 1e-2
 MAX_ITERATIONS = 6000
 BATCH_SIZE = 8
 LABELED_BS = 4
