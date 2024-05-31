@@ -8,27 +8,23 @@ import h5py
 import itertools
 from torch.utils.data.sampler import Sampler
 
-def load_dataset(rel_path='.', mode="training", resize=True, resize_shape=(256, 256)):
+def load_dataset(rel_path='.', mode="training", resize=True, resize_shape=(512, 512)):
     dataset_name = "DRIVE"
     datasets_path = os.path.join(rel_path, "datasets", dataset_name, mode)
     src_path = os.path.join(rel_path, dataset_name, mode)
 
     image_path = os.path.join(datasets_path, "image.npy")
     label_path = os.path.join(datasets_path, "label.npy")
-    mask_path = os.path.join(datasets_path, "mask.npy")
 
     if os.path.exists(image_path) and \
-        os.path.exists(label_path) and \
-        os.path.exists(mask_path):
+        os.path.exists(label_path):
         
         new_input_tensor = np.load(image_path)
         new_label_tensor = np.load(label_path)
-        new_mask_tensor = np.load(mask_path)
-        return new_input_tensor, new_label_tensor, new_mask_tensor
+        return new_input_tensor, new_label_tensor
 
     image_files = sorted(glob(os.path.join(src_path, 'images/*.tif')))
     label_files = sorted(glob(os.path.join(src_path, '1st_manual/*.gif')))
-    mask_files = sorted(glob(os.path.join(src_path, 'mask/*.gif')))
     
     for i, filename in enumerate(image_files):
         print('[*] adding {}th {} image : {}'.format(i + 1, mode, filename))
@@ -59,40 +55,23 @@ def load_dataset(rel_path='.', mode="training", resize=True, resize_shape=(256, 
             label_tensor = np.concatenate((label_tensor, tmp), axis=0)
     new_label_tensor = np.stack((label_tensor[:,:,:], 1 - label_tensor[:,:,:]), axis=1)
     
-    for i, filename in enumerate(mask_files):
-        print('[*] adding {}th {} mask : {}'.format(i+1, mode, filename))
-        Img_mask = Image.open(filename)
-        if resize:
-            Img_mask = Img_mask.resize(resize_shape, Image.LANCZOS)
-            Img_mask = Img_mask.convert('1')
-        mask = np.array(Img_mask)
-        mask = mask / 1.0
-        if i == 0:
-            mask_tensor = np.expand_dims(mask, axis=0)
-        else:
-            tmp = np.expand_dims(mask, axis=0)
-            mask_tensor = np.concatenate((mask_tensor, tmp), axis=0)
-    new_mask_tensor = np.stack((mask_tensor[:,:,:], mask_tensor[:,:,:]), axis=1)
     if not os.path.exists(datasets_path + "/"):
         os.makedirs(datasets_path + "/")
     np.save(image_path, new_input_tensor)
     np.save(label_path, new_label_tensor)
-    np.save(mask_path, new_mask_tensor)
     
-    return new_input_tensor, new_label_tensor, new_mask_tensor
-
+    return new_input_tensor, new_label_tensor
 class Drive(Dataset):
     """ Drive Dataset """
     def __init__(self, base_dir=None, transform=None):
         
         self.transform = transform
 
-        self.image_list, self.label_list, self.mask_list = load_dataset(rel_path=base_dir)
+        self.image_list, self.label_list= load_dataset(rel_path=base_dir)
         
         shuffle_ids = np.random.permutation(len(self.image_list))
         self.image_list = self.image_list[shuffle_ids, :, :, :]
         self.label_list = self.label_list[shuffle_ids, :, :, :]
-        self.mask_list = self.mask_list[shuffle_ids, :, :, :]
 
     def __len__(self):
         return len(self.image_list)
