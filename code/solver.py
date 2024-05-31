@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 from torch.nn import BCELoss, MSELoss
 from torchvision.utils import make_grid
 
-from utils_dtc.losses import dice_loss
+from utils_dtc.losses import dice_loss, cl_dice_loss
 from utils_dtc.losses_2 import compute_sdf
 from utils_dtc.ramps import sigmoid_rampup
 
@@ -116,8 +116,9 @@ class Solver(object):
             
         loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)    
         loss_seg = self.ce_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
-        loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
-        
+        # loss_seg_dice = cl_dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
+        loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
+
         dis_to_mask = torch.sigmoid(self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
         supervised_loss = loss_seg_dice + self.beta * loss_sdf

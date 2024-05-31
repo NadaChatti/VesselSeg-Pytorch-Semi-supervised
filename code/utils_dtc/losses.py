@@ -4,7 +4,6 @@ import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
 
-
 def dice_loss(score, target):
     target = target.float()
     smooth = 1e-5
@@ -164,3 +163,63 @@ def entropy_map(p):
     ent_map = -1*torch.sum(p * torch.log(p + 1e-6), dim=1,
                            keepdim=True)
     return ent_map
+
+class SoftSkeletonize(torch.nn.Module):
+
+    def __init__(self, num_iter=40):
+
+        super(SoftSkeletonize, self).__init__()
+        self.num_iter = num_iter
+
+    def soft_erode(self, img):
+        if len(img.shape)==4:
+            p1 = -F.max_pool2d(-img, (3,1), (1,1), (1,0))
+            p2 = -F.max_pool2d(-img, (1,3), (1,1), (0,1))
+            return torch.min(p1,p2)
+        elif len(img.shape)==5:
+            p1 = -F.max_pool3d(-img,(3,1,1),(1,1,1),(1,0,0))
+            p2 = -F.max_pool3d(-img,(1,3,1),(1,1,1),(0,1,0))
+            p3 = -F.max_pool3d(-img,(1,1,3),(1,1,1),(0,0,1))
+            return torch.min(torch.min(p1, p2), p3)
+
+    def soft_dilate(self, img):
+
+        if len(img.shape)==4:
+            return F.max_pool2d(img, (3,3), (1,1), (1,1))
+        elif len(img.shape)==5:
+            return F.max_pool3d(img,(3,3,3),(1,1,1),(1,1,1))
+
+    def soft_open(self, img):
+        
+        return self.soft_dilate(self.soft_erode(img))
+
+    def soft_skel(self, img):
+
+        img1 = self.soft_open(img)
+        skel = F.relu(img-img1)
+
+        for j in range(self.num_iter):
+            img = self.soft_erode(img)
+            img1 = self.soft_open(img)
+            delta = F.relu(img-img1)
+            skel = skel + F.relu(delta - skel * delta)
+
+        return skel
+
+    def forward(self, img):
+
+        return self.soft_skel(img)
+
+def cl_dice_loss(y_true, y_pred):
+    # exclude_background = True
+    soft_skeletonize = SoftSkeletonize(num_iter=10)
+    smooth = 1.
+    # if exclude_background:
+    #     y_true = y_true[:, 1:, :, :]
+    #     y_pred = y_pred[:, 1:, :, :]
+    skel_pred = soft_skeletonize(y_pred)
+    skel_true = soft_skeletonize(y_true)
+    tprec = (torch.sum(torch.multiply(skel_pred, y_true))+smooth)/(torch.sum(skel_pred)+smooth)    
+    tsens = (torch.sum(torch.multiply(skel_true, y_pred))+smooth)/(torch.sum(skel_true)+smooth)    
+    cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)
+    return cl_dice
