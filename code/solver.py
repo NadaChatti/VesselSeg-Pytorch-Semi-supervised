@@ -117,7 +117,7 @@ class Solver(object):
         loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)    
         loss_seg = self.ce_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
         # loss_seg_dice = cl_dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
-        loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
+        loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
 
         dis_to_mask = torch.sigmoid(self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
