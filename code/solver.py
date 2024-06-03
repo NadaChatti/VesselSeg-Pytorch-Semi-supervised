@@ -137,6 +137,7 @@ class Solver(object):
         self.writer.add_scalar(f'{segment}_loss/loss', loss.item(), self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/loss_dice', loss_seg_dice.item(), self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/loss_hausdorff', loss_sdf.item(), self.current_iter)
+        self.writer.add_scalar(f'{segment}_loss/loss_boundary', bl_loss.item(), self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/consistency_loss', consistency_loss.item(), self.current_iter)
         # if self.current_iter % self.save_every == 0:
         self.save_tb_images_training(bat_img[0, :, :, :],
@@ -146,9 +147,9 @@ class Solver(object):
                     bat_pred_tanh[0, 0:1, :, :],
                     gt_dis[0, :, :], 
                     self.current_iter, segment)
-        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f' %
+        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_boundary: %f, loss_dice: %f' %
             (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
-             loss_seg_dice.item()))
+             bl_loss.item(), loss_seg_dice.item()))
         
         # change lr
         if self.current_iter % 1000 == 0:
