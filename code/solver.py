@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 from torch.nn import BCELoss, MSELoss
 from torchvision.utils import make_grid
 
-from utils_dtc.losses import dice_loss, cl_dice_loss
+from utils_dtc.losses import BoundaryLoss, dice_loss, cl_dice_loss
 from utils_dtc.losses_2 import compute_sdf
 from utils_dtc.ramps import sigmoid_rampup
 
@@ -58,6 +58,8 @@ class Solver(object):
         self.opt = optimizer
         self.ce_loss = BCELoss()
         self.mse_loss = MSELoss()
+        self.boundary_loss = BoundaryLoss(idc=[0])
+        
 
         self.model_path = model_path
         self.verbose = verbose
@@ -109,19 +111,21 @@ class Solver(object):
         # Forward pass
         bat_pred_tanh, bat_pred = self.model(bat_img)
         bat_pred_soft = torch.sigmoid(bat_pred)
+        bat_pred_soft2 = torch.softmax(bat_pred, dim=1)
         # Compute loss
         with torch.no_grad():
                 gt_dis = compute_sdf(bat_label[:].cpu().numpy(), bat_pred[:self.labeled_bs, 0, ...].shape)
                 gt_dis = torch.from_numpy(gt_dis).float().to(self.device)
+                # gt_dis_soft = torch.softmax(gt_dis, dim=1)
             
-        loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)    
-        loss_seg = self.ce_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
+        loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)  
+        bl_loss = self.boundary_loss(bat_pred_soft2[:self.labeled_bs], gt_dis)
         # loss_seg_dice = cl_dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
         loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
 
         dis_to_mask = torch.sigmoid(self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
-        supervised_loss = loss_seg_dice + self.beta * loss_sdf
+        supervised_loss = loss_seg_dice + self.beta * (loss_sdf + bl_loss)
         
         consistency_weight = get_current_consistency_weight((self.current_iter) // 150)
         loss = supervised_loss + consistency_weight * consistency_loss
@@ -142,9 +146,9 @@ class Solver(object):
                     bat_pred_tanh[0, 0:1, :, :],
                     gt_dis[0, :, :], 
                     self.current_iter, segment)
-        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_seg: %f, loss_dice: %f' %
+        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f' %
             (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
-            loss_seg.item(), loss_seg_dice.item()))
+             loss_seg_dice.item()))
         
         # change lr
         if self.current_iter % 1000 == 0:

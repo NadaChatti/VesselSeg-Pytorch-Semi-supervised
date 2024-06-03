@@ -1,8 +1,12 @@
+from typing import List, cast
 import torch
 from torch.nn import functional as F
+from torch import Tensor, einsum
 import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
+
+from utils import simplex, one_hot
 
 def dice_loss(score, target):
     target = target.float()
@@ -223,3 +227,26 @@ def cl_dice_loss(y_true, y_pred):
     tsens = (torch.sum(torch.multiply(skel_true, y_pred))+smooth)/(torch.sum(skel_true)+smooth)    
     cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)
     return cl_dice
+
+class SurfaceLoss():
+    def __init__(self, **kwargs):
+        # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
+        self.idc: List[int] = kwargs["idc"]
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
+        assert simplex(probs)
+        assert not one_hot(dist_maps)
+
+        dc = dist_maps[:, self.idc, ...].type(torch.float32)
+
+        pc = probs[:, self.idc, ...].type(torch.float32)
+
+        multipled = einsum("bkwh,bwh->bkwh", pc, dc)
+
+        loss = multipled.mean()
+
+        return loss
+
+
+BoundaryLoss = SurfaceLoss
