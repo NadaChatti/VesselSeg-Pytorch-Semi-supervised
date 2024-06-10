@@ -50,13 +50,14 @@ class Solver(object):
         self.max_iterations = parameters.max_iterations
         self.beta = parameters.beta
         self.scaling = parameters.scaling
-        self.alpha = parameters.cldice_alpha
+        self.cldice_alpha = parameters.cldice_alpha
         self.k = parameters.cldice_k
+        self.bl_alpha = parameters.bl_alpha
 
         self.opt = optimizer
         self.ce_loss = BCELoss()
         self.mse_loss = MSELoss()
-        self.boundary_loss = BoundaryLoss(idc=[0])
+        self.boundary_loss = BoundaryLoss(idc=[0]) #originally [1]
         
 
         self.model_path = parameters.snapshot_path
@@ -122,7 +123,7 @@ class Solver(object):
         # skel_pred, skel_true, loss_dice, bl_loss = None
         # cldice
         if self.contribution == CLDICE:
-            skel_pred, skel_true, loss_dice = soft_dice_cldice(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float(), self.alpha, self.k)
+            skel_pred, skel_true, loss_dice = soft_dice_cldice(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float(), self.cldice_alpha, self.k)
             bl_loss = 0.0
         # boundary loss
         elif self.contribution == BL:
@@ -135,7 +136,7 @@ class Solver(object):
         
         dis_to_mask = torch.sigmoid(self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
-        supervised_loss = loss_dice + self.beta * (loss_sdf + bl_loss)
+        supervised_loss = loss_dice + self.beta * (loss_sdf + self.bl_alpha * bl_loss)
         # supervised_loss = loss_dice + self.beta * loss_sdf
         
         consistency_weight = get_current_consistency_weight((self.current_iter) // 150)
