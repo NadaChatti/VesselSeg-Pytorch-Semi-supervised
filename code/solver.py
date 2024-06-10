@@ -8,8 +8,8 @@ import logging
 from tensorboardX import SummaryWriter
 from torch.nn import BCELoss, MSELoss
 from torchvision.utils import make_grid
-
-from utils_dtc.losses import BoundaryLoss, dice_loss, cl_dice_loss
+from parameters import *
+from utils_dtc.losses import BoundaryLoss, dice_loss, cl_dice_loss, soft_dice_cldice
 from utils_dtc.losses_2 import compute_sdf
 from utils_dtc.ramps import sigmoid_rampup
 
@@ -19,12 +19,8 @@ class Solver(object):
 
     """
 
-    def __init__(self, model:nn.Module, train_dataloader, val_dataloader, device,
-                 optimizer: torch.optim.Optimizer, learning_rate=1e-3, beta=0.3, 
-                 labeled_bs=4, scaling=1500, consistency_rampup=40.0,
-                 max_iterations=6000,
-                 verbose=True, print_every=1, save_every=100, model_path= None,
-                 **kwargs):
+    def __init__(self, parameters: Parameters, model:nn.Module, train_dataloader, val_dataloader, device,
+                 optimizer: torch.optim.Optimizer, verbose=True, **kwargs):
         """
         Construct a new Solver instance.
 
@@ -48,12 +44,14 @@ class Solver(object):
         self.model = model
         self.device = device
 
-        self.base_learning_rate = learning_rate
-        self.beta = beta
-        self.scaling = scaling
-        self.labeled_bs = labeled_bs
-        self.consistency_rampup = consistency_rampup
-        self.max_iterations = max_iterations
+        self.base_learning_rate = parameters.lr
+        self.labeled_bs = parameters.labeled_bs
+        self.consistency_rampup = parameters.consistency_rampup
+        self.max_iterations = parameters.max_iterations
+        self.beta = parameters.beta
+        self.scaling = parameters.scaling
+        self.alpha = parameters.cldice_alpha
+        self.k = parameters.cldice_k
 
         self.opt = optimizer
         self.ce_loss = BCELoss()
@@ -61,17 +59,19 @@ class Solver(object):
         self.boundary_loss = BoundaryLoss(idc=[0])
         
 
-        self.model_path = model_path
+        self.model_path = parameters.snapshot_path
         self.verbose = verbose
-        self.print_every = print_every
-        self.writer = SummaryWriter(model_path+'/log')
-        self.save_every = save_every
+        self.print_every = parameters.print_every
+        self.writer = SummaryWriter(self.model_path+'/log')
+        self.save_every = parameters.save_every
         
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         
         self.current_iter = 0
         self.current_lr = self.base_learning_rate
+
+        self.contribution = parameters.contribution
         self._reset()
 
     def _reset(self):
@@ -111,7 +111,6 @@ class Solver(object):
         # Forward pass
         bat_pred_tanh, bat_pred = self.model(bat_img)
         bat_pred_soft = torch.sigmoid(bat_pred)
-        bat_pred_soft2 = torch.softmax(bat_pred, dim=1)
         # Compute loss
         with torch.no_grad():
                 gt_dis = compute_sdf(bat_label[:].cpu().numpy(), bat_pred[:self.labeled_bs, 0, ...].shape)
@@ -119,13 +118,25 @@ class Solver(object):
                 # gt_dis_soft = torch.softmax(gt_dis, dim=1)
             
         loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)  
-        bl_loss = self.boundary_loss(bat_pred_soft2[:self.labeled_bs], gt_dis)
-        # loss_seg_dice = cl_dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float())
-        loss_seg_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
-
+        
+        # skel_pred, skel_true, loss_dice, bl_loss = None
+        # cldice
+        if self.contribution == CLDICE:
+            skel_pred, skel_true, loss_dice = soft_dice_cldice(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float(), self.alpha, self.k)
+            bl_loss = 0.0
+        # boundary loss
+        elif self.contribution == BL:
+            bat_pred_soft2 = torch.softmax(bat_pred, dim=1)
+            bl_loss = self.boundary_loss(bat_pred_soft2[:self.labeled_bs], gt_dis)
+            loss_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
+        else:
+            loss_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
+            bl_loss = 0.0
+        
         dis_to_mask = torch.sigmoid(self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
-        supervised_loss = loss_seg_dice + self.beta * (loss_sdf + bl_loss)
+        supervised_loss = loss_dice + self.beta * (loss_sdf + bl_loss)
+        # supervised_loss = loss_dice + self.beta * loss_sdf
         
         consistency_weight = get_current_consistency_weight((self.current_iter) // 150)
         loss = supervised_loss + consistency_weight * consistency_loss
@@ -135,9 +146,10 @@ class Solver(object):
         self.writer.add_scalar('lr', self.current_lr, self.current_iter)
         self.writer.add_scalar(f'consistency_weight', consistency_weight, self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/loss', loss.item(), self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/loss_dice', loss_seg_dice.item(), self.current_iter)
+        self.writer.add_scalar(f'{segment}_loss/loss_dice', loss_dice.item(), self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/loss_hausdorff', loss_sdf.item(), self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/loss_boundary', bl_loss.item(), self.current_iter)
+        if self.contribution == BL:
+            self.writer.add_scalar(f'{segment}_loss/loss_boundary', bl_loss.item(), self.current_iter)
         self.writer.add_scalar(f'{segment}_loss/consistency_loss', consistency_loss.item(), self.current_iter)
         # if self.current_iter % self.save_every == 0:
         self.save_tb_images_training(bat_img[0, :, :, :],
@@ -146,11 +158,16 @@ class Solver(object):
                     dis_to_mask[0, 0:1, :, :],
                     bat_pred_tanh[0, 0:1, :, :],
                     gt_dis[0, :, :], 
+                    skel_pred[0, ...] if self.contribution == CLDICE else None,
+                    skel_true[0, ...] if self.contribution == CLDICE else None,
                     self.current_iter, segment)
-        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_boundary: %f, loss_dice: %f' %
+        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f' %
             (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
-             bl_loss.item(), loss_seg_dice.item()))
-        
+             loss_dice.item()))
+        # logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f, loss_boundary: %f' %
+        #     (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
+        #      loss_dice.item(), bl_loss.item()))
+         
         # change lr
         if self.current_iter % 1000 == 0:
             self.current_lr = self.base_learning_rate * 0.1 ** (self.current_iter // 2500)
@@ -285,6 +302,7 @@ class Solver(object):
 
     def save_tb_images_training(self,img, prediction, label, 
                     dis_to_mask, pred_dist_map, gt_distmap, 
+                    skel_pred, skel_tru,
                     iteration, segment):
         grid_image = make_grid(img, 1, normalize=True)
         self.writer.add_image(f'{segment}_vis/Image', grid_image, iteration)
@@ -305,6 +323,15 @@ class Solver(object):
         grid_image = make_grid(gt_distmap, 1, normalize=False)
         self.writer.add_image(f'{segment}_vis/Groundtruth_DistMap',
                             grid_image, iteration)
+        
+        if skel_pred != None:
+            grid_image = make_grid(skel_pred, 1, normalize=False)
+            self.writer.add_image(f'{segment}_vis/pred_skel',
+                                grid_image, iteration)
+        if skel_tru != None:
+            grid_image = make_grid(skel_tru, 1, normalize=False)
+            self.writer.add_image(f'{segment}_vis/GT_skel',
+                                grid_image, iteration)
 
     def empty_cache(self):
         """
