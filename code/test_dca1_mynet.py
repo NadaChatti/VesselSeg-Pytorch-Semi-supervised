@@ -4,7 +4,6 @@
 # author: Jia Zhuang
 # date: 2020-09-21
 
-from PIL import Image
 import numpy as np
 import torch
 from torch import nn
@@ -21,7 +20,7 @@ from tensorboardX import SummaryWriter
 from torchvision.utils import make_grid
 from utils_dtc.metrics import dice, cal_dice
 
-MODEL = "May08_14-54-14_20labels_beta_0.3_scaling_-1500withAug"
+MODEL = "soft_dice_cldice/original"
 ITERATION = "iter_6000.pth"
 
 project_dirname = os.path.join(os.path.dirname(__file__), "..")
@@ -74,6 +73,11 @@ def model_test(net, base_dir, save_imgs, batch_size=2):
     
     dice_average = dice_score_sum  / num_iters
     cal_dice_average = cal_dice_score_sum  / num_iters
+
+    writer.add_scalar("test/average_dice", dice_average, 0)
+    writer.add_scalar("test/average_dice", dice_average, 1)
+    writer.add_scalar("test/average_cl_dice", cal_dice_average[0], 0)
+    writer.add_scalar("test/average_cl_dice", cal_dice_average[0], 1)
     logging.info('average dice score is {}'.format(dice_average))
     logging.info('average cal dice score is {}'.format(cal_dice_average))
 

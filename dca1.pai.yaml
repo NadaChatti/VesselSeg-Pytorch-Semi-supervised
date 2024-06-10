@@ -43,7 +43,13 @@ taskRoles:
       - pip install medpy
       - pip install h5py
       - export HDF5_USE_FILE_LOCKING='FALSE'
-      - python3 code/train_dca1_mynet.py
+      - python3 code/train_dca1_mynet.py --exp /model/DCA1/original_Crop
+      - python3 code/train_dca1_mynet.py --alpha 0.3 --k 20 --contribution clDice --exp /model/DCA1/clDice/k_20_alpha_0.3_Crop
+      - python3 code/train_dca1_mynet.py --alpha 0.3 --k 5 --contribution clDice --exp /model/DCA1/clDice/k_20_alpha_0.3_Crop
+      - python3 code/train_dca1_mynet.py --alpha 0.3 --k 3 --contribution clDice --exp /model/DCA1/clDice/k_20_alpha_0.3_Crop
+      - python3 code/train_dca1_mynet.py --alpha 0.2 --k 10 --contribution clDice --exp /model/DCA1/clDice/k_20_alpha_0.3_Crop
+      - python3 code/train_dca1_mynet.py --alpha 0.2 --k 20 --contribution clDice --exp /model/DCA1/clDice/k_20_alpha_0.3_Crop
+      # - python3 code/train_dca1_mynet.py --contribution boundary_loss --exp /model/DCA1/bl/bl
 extras:
   com.microsoft.pai.runtimeplugin:
     - plugin: ssh
