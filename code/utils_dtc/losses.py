@@ -137,9 +137,12 @@ class SurfaceLoss():
         assert simplex(probs)
         assert not one_hot(dist_maps)
 
+        pc = probs.type(torch.float32)
         dc = dist_maps[None, ...].type(torch.float32)
 
-        pc = probs.type(torch.float32)
+        # original code
+        # pc = probs[:, self.idc, ...].type(torch.float32)
+        # dc = dist_maps[:, self.idc, ...].type(torch.float32)
 
         multipled = einsum("bkwh,bkwh->bkwh", pc, dc)
 
