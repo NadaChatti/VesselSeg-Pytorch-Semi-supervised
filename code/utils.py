@@ -27,7 +27,7 @@ def get_data_loaders(parameters: Parameters):
     if parameters.with_aug: 
         myTransforms = [
             RandomRotFlip(), 
-            RandomCrop(parameters.patch_size)
+            # RandomCrop(parameters.patch_size)
                         ] + myTransforms
 
     db_train = DCA1(base_dir=parameters.project_dirname,
