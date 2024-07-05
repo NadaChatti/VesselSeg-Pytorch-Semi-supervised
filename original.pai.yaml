@@ -1,5 +1,5 @@
 protocolVersion: 2
-name: dca1
+name: original
 type: job
 prerequisites:
   - name: image
@@ -44,26 +44,17 @@ taskRoles:
       - pip install h5py
       - export HDF5_USE_FILE_LOCKING='FALSE'
       # - python3 code/train_dca1_mynet.py --exp /model/DCA1/original_Without_resize
-      # - python3 code/train_dca1_mynet.py --cldice_alpha 0.3 --k 10 --batch_size 4 --labeled_bs 2 --contribution clDice --exp k_10_alpha_0.3_Crop_bs4
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.1 --k 5 --contribution clDice --exp k_05/alpha_0.1
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.2 --k 5 --contribution clDice --exp k_05/alpha_0.2
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.3 --k 5 --contribution clDice --exp k_05/alpha_0.3
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.4 --k 5 --contribution clDice --exp k_05/alpha_0.4
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.5 --k 5 --contribution clDice --exp k_05/alpha_0.5
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.1 --k 10 --contribution clDice --exp k_10/alpha_0.1
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.2 --k 10 --contribution clDice --exp k_10/alpha_0.2
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.3 --k 10 --contribution clDice --exp k_10/alpha_0.3
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.4 --k 10 --contribution clDice --exp k_10/alpha_0.4
-      # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.5 --k 10 --contribution clDice --exp k_10/alpha_0.5
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 10 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 10labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 20 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 20labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 30 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 30labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 40 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 40labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 50 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 50labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 60 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 60labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 70 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 70labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 80 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 80labels
-      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 90 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 90labels
+      - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --exp vnet_unsuper_dice
+      - python3 code/train_dca1_mynet.py --dataset DRIVE --labelnum 8 --no-validate --batch_size 4 --labeled_bs 2 --exp vnet_unsuper_dice
+      
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 20 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 20labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 30 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 30labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 40 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 40labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 50 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 50labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 60 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 60labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 70 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 70labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 80 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 80labels
+      # - python3 code/train_dca1_mynet.py --no-validate --batch_size 4 --labeled_bs 2 --labelnum 90 --cldice_alpha 0.1 --k 15 --contribution clDice --exp 90labels
       # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.2 --k 15 --contribution clDice --exp k_15/alpha_0.2
       # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.3 --k 15 --contribution clDice --exp k_15/alpha_0.3
       # - python3 code/train_dca1_mynet.py --batch_size 4 --labeled_bs 2 --cldice_alpha 0.4 --k 15 --contribution clDice --exp k_15/alpha_0.4

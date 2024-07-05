@@ -68,8 +68,8 @@ def load_dataset(rel_path='.', mode="training", resize=False, resize_shape=(256,
         img_label = cv2.imread(filename)
         if resize:
             img_label = cv2.resize(img_label, resize_shape)
-            img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
-            _, img_label = cv2.threshold(img_label, 127, 1, cv2.THRESH_BINARY)
+        img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
+        _, img_label = cv2.threshold(img_label, 127, 1, cv2.THRESH_BINARY)
         label = np.array(img_label)
         label = label / 1.0
         if i == 0:

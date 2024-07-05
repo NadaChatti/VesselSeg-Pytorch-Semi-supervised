@@ -12,7 +12,8 @@ import torch
 from sklearn.metrics import roc_auc_score, roc_curve
 from torch import Tensor
 from parameters import *
-from dataloaders.dca1 import DCA1, RandomCrop, RandomRotFlip, ToTensor, TwoStreamBatchSampler
+from dataloaders.dca1 import DCA1, RandomCrop as DCA1_RandomCrop, RandomRotFlip as DCA1_RandomRotFlip, ToTensor as DCA1_ToTensor, TwoStreamBatchSampler as DCA1_TwoStreamBatchSampler
+from dataloaders.drive import Drive, RandomCrop as Drive_RandomCrop, RandomRotFlip as Drive_RandomRotFlip, ToTensor as Drive_ToTensor, TwoStreamBatchSampler as Drive_TwoStreamBatchSampler
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from math import floor
@@ -23,6 +24,19 @@ def get_data_loaders(parameters: Parameters):
     def worker_init_fn(worker_id):
         random.seed(parameters.seed+worker_id)
 
+    if parameters.dataset.lower() == "drive":
+        RandomCrop = Drive_RandomCrop
+        RandomRotFlip = Drive_RandomRotFlip
+        ToTensor = Drive_ToTensor
+        TwoStreamBatchSampler = Drive_TwoStreamBatchSampler
+        dataset = Drive
+    else:
+        RandomCrop = DCA1_RandomCrop
+        RandomRotFlip = DCA1_RandomRotFlip
+        ToTensor = DCA1_ToTensor
+        TwoStreamBatchSampler = DCA1_TwoStreamBatchSampler
+        dataset = DCA1
+
     myTransforms = [ToTensor()]
     if parameters.with_aug: 
         myTransforms = [
@@ -30,7 +44,7 @@ def get_data_loaders(parameters: Parameters):
             # RandomCrop(parameters.patch_size)
                         ] + myTransforms
 
-    db_train = DCA1(base_dir=parameters.project_dirname,
+    db_train = dataset(base_dir=parameters.project_dirname,
                         transform=transforms.Compose(myTransforms)
                         )
 
@@ -38,30 +52,37 @@ def get_data_loaders(parameters: Parameters):
     unlabeled_idxs = list(range(parameters.labelnum, parameters.imagenum))
     # random.shuffle(labeled_idxs)
     # random.shuffle(unlabeled_idxs)
-    train_labeled_num = floor(parameters.labelnum * 0.8)
-    train_unlabeled_num = floor(len(unlabeled_idxs) * 0.8)
-    train_labeled_idxs = labeled_idxs[:train_labeled_num]
-    train_unlabeled_idxs = unlabeled_idxs[:train_unlabeled_num]
-    val_labeled_idxs = labeled_idxs[train_labeled_num:]
-    val_unlabeled_idxs = unlabeled_idxs[train_unlabeled_num:]
+    if parameters.validate:
+        train_labeled_num = floor(parameters.labelnum * 0.8)
+        train_unlabeled_num = floor(len(unlabeled_idxs) * 0.8)
+        train_labeled_idxs = labeled_idxs[:train_labeled_num]
+        train_unlabeled_idxs = unlabeled_idxs[:train_unlabeled_num]
+        val_labeled_idxs = labeled_idxs[train_labeled_num:]
+        val_unlabeled_idxs = unlabeled_idxs[train_unlabeled_num:]
+    else:
+        train_labeled_idxs = labeled_idxs
+        train_unlabeled_idxs = unlabeled_idxs
 
     logging.info(f"train labeled indices = {train_labeled_idxs}")
-    logging.info(f"validation labeled indices = {val_labeled_idxs}")
     logging.info(f"train unlabeled indices = {train_unlabeled_idxs}")
-    logging.info(f"validation unlabeled indices = {val_unlabeled_idxs}")
+
 
     train_batch_sampler = TwoStreamBatchSampler(
         train_labeled_idxs, train_unlabeled_idxs, parameters.batch_size, parameters.batch_size-parameters.labeled_bs)
-    val_batch_sampler = TwoStreamBatchSampler(
-        val_labeled_idxs, val_unlabeled_idxs, parameters.batch_size, parameters.batch_size-parameters.labeled_bs)
-
 
     train_loader = DataLoader(db_train, batch_sampler=train_batch_sampler,
                             num_workers=4, pin_memory=True, worker_init_fn=worker_init_fn)
-    val_loader = DataLoader(db_train, batch_sampler=val_batch_sampler,
+    if parameters.validate:
+        logging.info(f"validation labeled indices = {val_labeled_idxs}")
+        logging.info(f"validation unlabeled indices = {val_unlabeled_idxs}")
+
+        val_batch_sampler = TwoStreamBatchSampler(
+            val_labeled_idxs, val_unlabeled_idxs, parameters.batch_size, parameters.batch_size-parameters.labeled_bs)
+
+        val_loader = DataLoader(db_train, batch_sampler=val_batch_sampler,
                             num_workers=4, pin_memory=True, worker_init_fn=worker_init_fn)
 
-    return train_loader, val_loader
+    return train_loader, val_loader if parameters.validate else None
 
 
 def eval_print_metrics(bat_label, bat_pred, bat_mask):
@@ -97,9 +118,19 @@ def paste_and_save(bat_img, bat_label, bat_pred_class, batch_size, cur_bat_num, 
         
         res_id = (cur_bat_num - 1) * batch_size + bat_id
         target = Image.new('RGB', (3 * w, h))
+        target1 = Image.new('RGB', (w, h))
+        target2 = Image.new('RGB', (w, h))
+        target3 = Image.new('RGB', (w, h))
         target.paste(img, box = (0, 0))
+        target1.paste(img, box = (0, 0))
         target.paste(label, box = (w, 0))
+        target2.paste(label, box = (0, 0))
         target.paste(pred_class, box = (2 * w, 0))
+        target3.paste(pred_class, box = (0, 0))
+
         
         target.save(os.path.join(save_img, "result_{}.png".format(res_id)))
+        target1.save(os.path.join(save_img, "result_img_{}.png".format(res_id)))
+        target2.save(os.path.join(save_img, "result_gt_{}.png".format(res_id)))
+        target3.save(os.path.join(save_img, "result_pred_{}.png".format(res_id)))
     return
