@@ -10,7 +10,7 @@ BL = "boundary_loss"
 parser = argparse.ArgumentParser()
 parser.add_argument('--validate', action='store_true', help='validate')
 parser.add_argument('--no-validate', dest='validate', action='store_false', help='don\'t validate')
-parser.set_defaults(feature=True)
+parser.set_defaults(validate=True)
 # parser.add_argument('--validate', type=bool,
 #                     default="True", help='whether or not to validate')
 parser.add_argument('--exp', type=str,
