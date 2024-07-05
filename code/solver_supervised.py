@@ -19,7 +19,7 @@ class Solver(object):
 
     """
 
-    def __init__(self, parameters: Parameters, model:nn.Module, train_dataloader, val_dataloader, device,
+    def __init__(self, parameters: Parameters, model:nn.Module, train_dataloader,  device,
                  optimizer: torch.optim.Optimizer, verbose=True, **kwargs):
         """
         Construct a new Solver instance.
@@ -65,10 +65,8 @@ class Solver(object):
         self.print_every = parameters.print_every
         self.writer = SummaryWriter(self.model_path+'/log')
         self.save_every = parameters.save_every
-        self.validate = parameters.validate
         
         self.train_dataloader = train_dataloader
-        self.val_dataloader = val_dataloader
         
         self.current_iter = 0
         self.current_lr = self.base_learning_rate
@@ -109,63 +107,28 @@ class Solver(object):
         loss = None
         # Unpack data
         bat_img, bat_label = batch['image'], batch['label']
+        bat_img, bat_label = bat_img[:self.labeled_bs], bat_label[:self.labeled_bs]
         bat_img, bat_label = bat_img.to(self.device), bat_label.to(self.device)
         # Forward pass
-        bat_pred_tanh, bat_pred = self.model(bat_img)
+        _, bat_pred = self.model(bat_img)
         bat_pred_soft = torch.sigmoid(bat_pred)
         # Compute loss
-        with torch.no_grad():
-                gt_dis = compute_sdf(bat_label[:].cpu().numpy(), bat_pred[:self.labeled_bs, 0, ...].shape)
-                gt_dis = torch.from_numpy(gt_dis).float().to(self.device)
-                # gt_dis_soft = torch.softmax(gt_dis, dim=1)
-            
-        loss_sdf = self.mse_loss(bat_pred_tanh[:self.labeled_bs, 0, ...], gt_dis)  
+
+        loss = dice_loss(bat_pred_soft, bat_label == 1)
         
-        # skel_pred, skel_true, loss_dice, bl_loss = None
-        # cldice
-        if self.contribution == CLDICE:
-            skel_pred, skel_true, loss_dice = soft_dice_cldice(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float(), self.cldice_alpha, self.k)
-            bl_loss = 0.0
-        # boundary loss
-        elif self.contribution == BL:
-            bat_pred_soft2 = torch.softmax(bat_pred, dim=1)
-            bl_loss = self.boundary_loss(bat_pred_soft2[:self.labeled_bs], gt_dis)
-            loss_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
-        else:
-            loss_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
-            bl_loss = 0.0
         
-        dis_to_mask = torch.sigmoid(-self.scaling * bat_pred_tanh)
-        consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
-        supervised_loss = loss_dice + self.beta * (loss_sdf + self.bl_alpha * bl_loss)
-        # supervised_loss = loss_dice + self.beta * loss_sdf
-        
-        consistency_weight = get_current_consistency_weight((self.current_iter) // 150)
-        loss = supervised_loss + consistency_weight * consistency_loss
 
         # write to TensorBoard
         segment = 'train' if not validation else 'val'
         self.writer.add_scalar('lr', self.current_lr, self.current_iter)
-        self.writer.add_scalar(f'consistency_weight', consistency_weight, self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/loss', loss.item(), self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/loss_dice', loss_dice.item(), self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/loss_hausdorff', loss_sdf.item(), self.current_iter)
-        if self.contribution == BL:
-            self.writer.add_scalar(f'{segment}_loss/loss_boundary', bl_loss.item(), self.current_iter)
-        self.writer.add_scalar(f'{segment}_loss/consistency_loss', consistency_loss.item(), self.current_iter)
+        self.writer.add_scalar(f'{segment}_loss/loss_dice', loss.item(), self.current_iter)
         # if self.current_iter % self.save_every == 0:
         self.save_tb_images_training(bat_img[0, :, :, :],
                     bat_pred_soft[0, :, :, :],
                     bat_label[0, :, :],
-                    dis_to_mask[0, 0:1, :, :],
-                    bat_pred_tanh[0, 0:1, :, :],
-                    gt_dis[0, :, :], 
-                    skel_pred[0, ...] if self.contribution == CLDICE else None,
-                    skel_true[0, ...] if self.contribution == CLDICE else None,
                     self.current_iter, segment)
-        logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f' %
-            (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
-             loss_dice.item()))
+        logging.info('iteration %d : loss : %f' %
+            (self.current_iter, loss.item()))
         # logging.info('iteration %d : loss : %f, loss_consis: %f, loss_haus: %f, loss_dice: %f, loss_boundary: %f' %
         #     (self.current_iter, loss.item(), consistency_loss.item(), loss_sdf.item(),
         #      loss_dice.item(), bl_loss.item()))
@@ -211,40 +174,13 @@ class Solver(object):
         self.empty_cache()
         return train_epoch_loss
 
-    def _eval_loop(self):
-        """
-        Executes the evaluation loop.
-
-        Handles the iteration over validation data batches for evaluation purposes.
-        """
-        self.model.eval()
-        self.empty_cache()
-        val_epoch_loss = 0
-
-        with torch.no_grad():
-            # Iterate over all validation samples
-            for batch in self.val_dataloader:
-                self.current_iter += 1
-
-                # Update the model parameters.
-                loss = self._forward(batch, validation=True)
-                
-                self.val_batch_loss.append(loss)
-                val_epoch_loss += loss
-        
-        self.empty_cache()
-        return val_epoch_loss
                         
     # def train(self, patience = None):
     def train(self):
         """
         Run optimization to train the model.
         """
-        max_epoch = 0
-        if self.validate:
-            max_epoch = self.max_iterations//(len(self.train_dataloader) + len(self.val_dataloader))+1
-        else:    
-            max_epoch = self.max_iterations//len(self.train_dataloader) +1
+        max_epoch = self.max_iterations//len(self.train_dataloader)+1
         iterator = tqdm(range(max_epoch), ncols=70)
         
         # Start an epoch
@@ -255,29 +191,21 @@ class Solver(object):
             train_epoch_loss = self._train_loop()
             train_epoch_loss /= len(self.train_dataloader)    
 
+
             # Record the losses for later inspection.
             self.train_loss_history.append(train_epoch_loss)
-            
-            if self.validate:
-                val_epoch_loss = self._eval_loop()
-                val_epoch_loss /= len(self.val_dataloader)  
-
-                # Record the losses for later inspection.
-                self.val_loss_history.append(val_epoch_loss)
 
             if self.verbose and epoch % self.print_every == 0:
                 logging.info('(Epoch %d / %d) train loss: %f' % (
                     epoch + 1, len(iterator), train_epoch_loss.item()))
-                if self.validate:
-                    logging.info('(Epoch %d / %d) val loss: %f' % (
-                        epoch + 1, len(iterator), train_epoch_loss.item(), val_epoch_loss.item())) 
             
             self.writer.add_scalar(f'train_loss/epoch_loss', train_epoch_loss.item(), self.current_iter)
-            if self.validate:
-                self.writer.add_scalar(f'val_loss/epoch_loss', val_epoch_loss.item(), self.current_iter)
             
-                # Keep track of the best model
-                self.update_best_loss(val_epoch_loss, train_epoch_loss, self.current_iter)
+            # Keep track of the best model
+            # self.update_best_loss(val_epoch_loss, train_epoch_loss, self.current_iter)
+            # if patience and self.current_patience >= patience:
+            #     logging.info("Stopping early at epoch {}!".format(epoch))
+            #     break
             if self.current_iter >= self.max_iterations:
                 iterator.close()
                 break
@@ -311,8 +239,6 @@ class Solver(object):
         #     self.current_patience += 1
 
     def save_tb_images_training(self,img, prediction, label, 
-                    dis_to_mask, pred_dist_map, gt_distmap, 
-                    skel_pred, skel_tru,
                     iteration, segment):
         grid_image = make_grid(img, 1, normalize=True)
         self.writer.add_image(f'{segment}_vis/Image', grid_image, iteration)
@@ -323,25 +249,6 @@ class Solver(object):
         grid_image = make_grid(label, 1, normalize=False)
         self.writer.add_image(f'{segment}_vis/Groundtruth_label',
                             grid_image, iteration)
-
-        grid_image = make_grid(dis_to_mask, 1, normalize=False)
-        self.writer.add_image(f'{segment}_vis/Dis2Mask', grid_image, iteration)
-
-        grid_image = make_grid(pred_dist_map, 1, normalize=False)
-        self.writer.add_image(f'{segment}_vis/DistMap', grid_image, iteration)
-            
-        grid_image = make_grid(gt_distmap, 1, normalize=False)
-        self.writer.add_image(f'{segment}_vis/Groundtruth_DistMap',
-                            grid_image, iteration)
-        
-        if skel_pred != None:
-            grid_image = make_grid(skel_pred, 1, normalize=False)
-            self.writer.add_image(f'{segment}_vis/pred_skel',
-                                grid_image, iteration)
-        if skel_tru != None:
-            grid_image = make_grid(skel_tru, 1, normalize=False)
-            self.writer.add_image(f'{segment}_vis/GT_skel',
-                                grid_image, iteration)
 
     def empty_cache(self):
         """

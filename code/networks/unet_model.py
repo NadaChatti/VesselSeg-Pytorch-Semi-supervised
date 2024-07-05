@@ -12,7 +12,7 @@ from torch import nn
 import torch.nn.functional as F
 import os
 from glob import glob
-from unet_utils import *
+from networks.unet_utils import *
 
 class Unet(nn.Module):
     """
@@ -52,6 +52,5 @@ class Unet(nn.Module):
         u2 = self.up2(u1, d3)
         u3 = self.up3(u2, d2)
         u4 = self.up4(u3, d1)
-        output_tanh = self.tanh(u4)
         output_ = self.out(u4)
-        return output_, output_tanh
+        return output_
