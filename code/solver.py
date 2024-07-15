@@ -270,7 +270,7 @@ class Solver(object):
                     epoch + 1, len(iterator), train_epoch_loss.item()))
                 if self.validate:
                     logging.info('(Epoch %d / %d) val loss: %f' % (
-                        epoch + 1, len(iterator), train_epoch_loss.item(), val_epoch_loss.item())) 
+                        epoch + 1, len(iterator), val_epoch_loss.item())) 
             
             self.writer.add_scalar(f'train_loss/epoch_loss', train_epoch_loss.item(), self.current_iter)
             if self.validate:
