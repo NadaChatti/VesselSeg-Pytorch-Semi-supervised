@@ -126,6 +126,7 @@ class Solver(object):
         if self.contribution == CLDICE:
             skel_pred, skel_true, loss_dice = soft_dice_cldice(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs].float(), self.cldice_alpha, self.k)
             bl_loss = 0.0
+            self.bl_alpha = 0.0
         # boundary loss
         elif self.contribution == BL:
             bat_pred_soft2 = torch.softmax(bat_pred, dim=1)
@@ -134,10 +135,11 @@ class Solver(object):
         else:
             loss_dice = dice_loss(bat_pred_soft[:self.labeled_bs], bat_label[:self.labeled_bs] == 1)
             bl_loss = 0.0
-        
+            self.bl_alpha = 0.0
+            
         dis_to_mask = torch.sigmoid(-self.scaling * bat_pred_tanh)
         consistency_loss = torch.mean((dis_to_mask - bat_pred_soft) ** 2)
-        supervised_loss = loss_dice + self.beta * (loss_sdf + self.bl_alpha * bl_loss)
+        supervised_loss = loss_dice + self.beta * ((1 - self.bl_alpha) * loss_sdf + self.bl_alpha * bl_loss)
         # supervised_loss = loss_dice + self.beta * loss_sdf
         
         consistency_weight = get_current_consistency_weight((self.current_iter) // 150)

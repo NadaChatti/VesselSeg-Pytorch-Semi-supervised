@@ -14,7 +14,7 @@ import sys
 import logging
 from glob import glob
 from networks.unet_model import Unet
-from dataloaders.drive import load_dataset
+from dataloaders.dca1 import load_dataset
 from networks.mynet import MyNet
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 from utils import paste_and_save, eval_print_metrics
@@ -22,15 +22,13 @@ from tensorboardX import SummaryWriter
 from torchvision.utils import make_grid
 from utils_dtc.metrics import dice, cal_dice
 
-MODEL = "vnet_unsuper_cldice"
+MODEL = "boundary_loss/bl_alpha0.1Jul15_14-06-19"
 ITERATION = "iter_6000.pth"
-CONTRIBUION = "clDice" # "boundary_loss"
+CONTRIBUION = "boundary_loss"
 force = True
 
 project_dirname = os.path.join(os.path.dirname(__file__), "..")
-# path = os.path.join(project_dirname,"model", "DRIVE", CONTRIBUION, "k20")
-# path = os.path.join(project_dirname,"model", "DCA1", "vnet_supervised_new")
-path = os.path.join(project_dirname,"model", "DRIVE", "methods_compare")
+path = os.path.join(project_dirname,"best_model", "DCA1")
 
 def model_test(net, base_dir, save_imgs, batch_size=2):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
