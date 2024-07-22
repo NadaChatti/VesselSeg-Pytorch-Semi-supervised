@@ -23,8 +23,8 @@ pip3 install h5py
 
 ```
 <!-- see code/parameters.py or run --help for arguments. -->
-python train_model_mynet.py
-python test_model_mynet.py
+python3 code/train_model_mynet.py
+python3 code/test_model_mynet.py
 ```
 
 
